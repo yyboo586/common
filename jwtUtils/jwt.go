@@ -1,6 +1,7 @@
 package jwtUtils
 
 import (
+	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
@@ -319,4 +320,55 @@ func (j *dbJWT) GetKey(kid string) (key *jose.JSONWebKey, err error) {
 	}
 
 	return key, nil
+}
+
+func Sign(userID string, claims map[string]interface{}, privateKey *rsa.PrivateKey) (jwtTokenStr string, err error) {
+	signer, err := jose.NewSigner(jose.SigningKey{Key: privateKey, Algorithm: jose.RS256}, (&jose.SignerOptions{}).WithType("JWT"))
+	if err != nil {
+		return
+	}
+
+	if claims == nil {
+		claims = make(map[string]interface{})
+	}
+
+	cclaims := CustomClaims{
+		jwt.Claims{
+			Issuer:    "example.com",
+			Subject:   userID,
+			Audience:  []string{"IAMService"},
+			Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour * 1)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+		claims,
+	}
+	jwtTokenStr, err = jwt.Signed(signer).Claims(cclaims).Serialize()
+	if err != nil {
+		return
+	}
+
+	return jwtTokenStr, nil
+}
+
+func Verify(jwtTokenStr string, privateKey *rsa.PrivateKey) (extClaims map[string]interface{}, err error) {
+	jwtToken, err := jwt.ParseSigned(jwtTokenStr, []jose.SignatureAlgorithm{jose.RS256})
+	if err != nil {
+		return
+	}
+
+	var cclaims CustomClaims
+	if err = jwtToken.Claims(&privateKey.PublicKey, &cclaims); err != nil {
+		return
+	}
+	expected := jwt.Expected{
+		Issuer:      "example.com",
+		AnyAudience: jwt.Audience{"IAMService"},
+		Time:        time.Time{},
+	}
+	if err = cclaims.Claims.Validate(expected); err != nil {
+		return
+	}
+
+	return cclaims.ExtClaims, err
 }
