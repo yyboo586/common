@@ -100,7 +100,7 @@ func (l *Logger) Error(v ...interface{}) {
 	if l.level <= ErrorLevel {
 		_, file, line, ok := runtime.Caller(1) // Adjust the depth based on your structure
 		if ok {
-			message := fmt.Sprintf("%s:%d: %s", file, line, fmt.Sprintln(v...))
+			message := fmt.Sprintf("%s:%d: %s", file, line, fmt.Sprint(v...))
 			l.loggers[ErrorLevel].Println(message)
 		} else {
 			l.loggers[ErrorLevel].Println(fmt.Sprintln(v...))
