@@ -7,6 +7,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.4
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gofrs/uuid v4.4.0+incompatible
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
 )
 
