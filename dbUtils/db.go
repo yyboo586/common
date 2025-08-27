@@ -7,17 +7,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type Config struct {
-	User   string
-	Passwd string
-	Host   string
-	Port   int
-	DBName string
-}
-
 // NewDB returns a new database pool. only supports mysql
-func NewDB(config *Config) (dbPool *sql.DB, err error) {
-	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?parseTime=true", config.User, config.Passwd, config.Host, config.Port, config.DBName)
+func NewDB(userName, password, host string, port int, dbName string) (dbPool *sql.DB, err error) {
+	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?parseTime=true", userName, password, host, port, dbName)
 
 	if dbPool, err = sql.Open("mysql", dsn); err != nil {
 		return nil, fmt.Errorf("NewDB(): failed to open database, error: %w", err)
