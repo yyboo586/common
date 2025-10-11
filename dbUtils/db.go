@@ -9,7 +9,7 @@ import (
 
 // NewDB returns a new database pool. only supports mysql
 func NewDB(userName, password, host string, port int, dbName string) (dbPool *sql.DB, err error) {
-	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?parseTime=true", userName, password, host, port, dbName)
+	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?parseTime=true&loc=Local", userName, password, host, port, dbName)
 
 	if dbPool, err = sql.Open("mysql", dsn); err != nil {
 		return nil, fmt.Errorf("NewDB(): failed to open database, error: %w", err)
