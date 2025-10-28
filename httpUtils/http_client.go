@@ -2,6 +2,7 @@ package httpUtils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,24 +12,27 @@ import (
 	"time"
 )
 
-type OAuth2HTTPClient interface {
-	GET(url string, header map[string]interface{}, cookies []*http.Cookie) (status int, respBody []byte, respHeader http.Header, err error)
-	POST(url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, respHeader http.Header, err error)
-	PUT(url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, respHeader http.Header, err error)
+type HTTPClient interface {
+	GET(ctx context.Context, url string, header map[string]interface{}) (status int, respBody []byte, err error)
+	POST(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
+	PUT(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
+	PATCH(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
+	DELETE(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
 }
 
-type oauth2HTTPClient struct {
-	c *http.Client
+type httpClient struct {
+	debug bool
+	c     *http.Client
 }
 
 var (
 	hcOnce sync.Once
-	hc     *oauth2HTTPClient
+	hc     *httpClient
 )
 
-func NewOAuth2HTTPClient() OAuth2HTTPClient {
+func NewHTTPClient() HTTPClient {
 	hcOnce.Do(func() {
-		hc = &oauth2HTTPClient{
+		hc = &httpClient{
 			c: &http.Client{
 				Timeout: time.Second * 3,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -40,19 +44,33 @@ func NewOAuth2HTTPClient() OAuth2HTTPClient {
 	return hc
 }
 
-func (o2Client *oauth2HTTPClient) GET(url string, header map[string]interface{}, cookies []*http.Cookie) (status int, respBody []byte, respHeader http.Header, err error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func NewHTTPClientWithDebug(debug bool) HTTPClient {
+	hcOnce.Do(func() {
+		hc = &httpClient{
+			debug: debug,
+			c: &http.Client{
+				Timeout: time.Second * 3,
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			},
+		}
+	})
+	return hc
+}
+
+func (hc *httpClient) GET(ctx context.Context, url string, header map[string]interface{}) (status int, respBody []byte, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return
 	}
 
-	o2Client.setHeader(req, header)
-	o2Client.setCookie(req, cookies)
+	hc.setHeader(req, header)
 
-	return o2Client.do(req)
+	return hc.do(req)
 }
 
-func (o2Client *oauth2HTTPClient) POST(url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, respHeader http.Header, err error) {
+func (hc *httpClient) POST(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error) {
 	var dataByte []byte
 	switch data := body.(type) {
 	case []byte:
@@ -66,17 +84,17 @@ func (o2Client *oauth2HTTPClient) POST(url string, header map[string]interface{}
 		}
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataByte))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(dataByte))
 	if err != nil {
 		return
 	}
 
-	o2Client.setHeader(req, header)
+	hc.setHeader(req, header)
 
-	return o2Client.do(req)
+	return hc.do(req)
 }
 
-func (o2Client *oauth2HTTPClient) PUT(url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, respHeader http.Header, err error) {
+func (hc *httpClient) PUT(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error) {
 	var dataByte []byte
 	switch data := body.(type) {
 	case []byte:
@@ -90,18 +108,75 @@ func (o2Client *oauth2HTTPClient) PUT(url string, header map[string]interface{},
 		}
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(dataByte))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(dataByte))
 	if err != nil {
 		return
 	}
 
-	o2Client.setHeader(req, header)
+	hc.setHeader(req, header)
 
-	return o2Client.do(req)
+	return hc.do(req)
 }
 
-func (o2Client *oauth2HTTPClient) do(req *http.Request) (status int, respBody []byte, respHeader http.Header, err error) {
-	resp, err := o2Client.c.Do(req)
+func (hc *httpClient) PATCH(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error) {
+	var dataByte []byte
+	switch data := body.(type) {
+	case []byte:
+		dataByte = data
+	case string:
+		dataByte = []byte(data)
+	default:
+		dataByte, err = json.Marshal(data)
+		if err != nil {
+			return
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(dataByte))
+	if err != nil {
+		return
+	}
+
+	hc.setHeader(req, header)
+
+	return hc.do(req)
+}
+
+func (hc *httpClient) DELETE(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error) {
+	var dataByte []byte
+	switch data := body.(type) {
+	case []byte:
+		dataByte = data
+	case string:
+		dataByte = []byte(data)
+	default:
+		dataByte, err = json.Marshal(data)
+		if err != nil {
+			return
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, bytes.NewBuffer(dataByte))
+	if err != nil {
+		return
+	}
+
+	hc.setHeader(req, header)
+
+	return hc.do(req)
+}
+
+func (hc *httpClient) do(req *http.Request) (status int, respBody []byte, err error) {
+	var reqBody []byte
+	if hc.debug {
+		reqBody, err = io.ReadAll(req.Body)
+		if err != nil {
+			return
+		}
+		req.Body = io.NopCloser(bytes.NewBuffer(reqBody))
+	}
+
+	resp, err := hc.c.Do(req)
 	if err != nil {
 		return
 	}
@@ -112,53 +187,64 @@ func (o2Client *oauth2HTTPClient) do(req *http.Request) (status int, respBody []
 		return
 	}
 
-	return resp.StatusCode, respBody, resp.Header, nil
+	if hc.debug {
+		hc.printDebugInfo(req, reqBody, resp.StatusCode, respBody)
+	}
+
+	return resp.StatusCode, respBody, nil
 }
 
-func (o2Client *oauth2HTTPClient) setHeader(req *http.Request, header map[string]interface{}) {
+func (hc *httpClient) setHeader(req *http.Request, header map[string]interface{}) {
 	for k, v := range header {
 		req.Header.Set(k, v.(string))
 	}
 }
 
-func (o2Client *oauth2HTTPClient) setCookie(req *http.Request, cookies []*http.Cookie) {
+func (hc *httpClient) setCookie(req *http.Request, cookies []*http.Cookie) {
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}
 }
 
-func GetChallengeFromHeader(h http.Header, splitStr string) (string, error) {
-	location := h.Get("Location")
-	arr := strings.Split(location, splitStr)
-	if len(arr) < 2 {
-		return "", fmt.Errorf("invalid location header: %s", location)
-	}
+func (hc *httpClient) printDebugInfo(req *http.Request, reqBody []byte, statusCode int, respBody []byte) {
+	var buf bytes.Buffer
 
-	return arr[1], nil
-}
+	// Request Info
+	buf.WriteString("\n" + strings.Repeat("=", 61) + "\n")
 
-func GetCodeFromHeader(h http.Header, splitStr string) (string, error) {
-	location := h.Get("Location")
-	arr := strings.Split(location, splitStr)
-	if len(arr) < 2 {
-		return "", fmt.Errorf("invalid location header: %s", location)
-	}
-
-	arr1 := strings.Split(arr[1], "&")
-
-	return arr1[0], nil
-}
-
-func ReadSetCookies(h http.Header) []*http.Cookie {
-	cookieCount := len(h["Set-Cookie"])
-	if cookieCount == 0 {
-		return []*http.Cookie{}
-	}
-	cookies := make([]*http.Cookie, 0, cookieCount)
-	for _, line := range h["Set-Cookie"] {
-		if cookie, err := http.ParseSetCookie(line); err == nil {
-			cookies = append(cookies, cookie)
+	buf.WriteString("[Request]\n")
+	buf.WriteString(fmt.Sprintf("Method: %s\n", req.Method))
+	buf.WriteString(fmt.Sprintf("URL: %s\n", req.URL.String()))
+	buf.WriteString(fmt.Sprintf("Headers: %v\n", req.Header))
+	if len(reqBody) > 0 {
+		// 尝试格式化JSON，如果失败则直接打印
+		var prettyJSON bytes.Buffer
+		if err := json.Indent(&prettyJSON, reqBody, "", "  "); err == nil {
+			buf.WriteString("Body:\n")
+			buf.Write(prettyJSON.Bytes())
+			buf.WriteString("\n")
+		} else {
+			buf.WriteString(fmt.Sprintf("Body: %s\n", string(reqBody)))
 		}
 	}
-	return cookies
+
+	// Response Info
+	buf.WriteString("\n[Response]\n")
+	buf.WriteString(fmt.Sprintf("Status Code: %d\n", statusCode))
+	if len(respBody) > 0 {
+		// 尝试格式化JSON，如果失败则直接打印
+		var prettyJSON bytes.Buffer
+		if err := json.Indent(&prettyJSON, respBody, "", "  "); err == nil {
+			buf.WriteString("Body:\n")
+			buf.Write(prettyJSON.Bytes())
+			buf.WriteString("\n")
+		} else {
+			buf.WriteString(fmt.Sprintf("Body: %s\n", string(respBody)))
+		}
+	}
+
+	buf.WriteString("\n" + strings.Repeat("=", 61) + "\n")
+
+	// 一次性输出，避免并发场景下日志混乱
+	fmt.Print(buf.String())
 }
