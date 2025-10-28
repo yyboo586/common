@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS %s (
   create_time BIGINT(20) NOT NULL COMMENT '创建时间',
   update_time BIGINT(20) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (id),
-  UNIQUE KEY idx_custom_id (custom_id),
+  KEY idx_custom_id (custom_id),
   KEY idx_type_status_time (task_type, status, next_retry_time),
   KEY idx_status_next_retry_time (status, next_retry_time),
   KEY idx_status_update_time (status, update_time)
