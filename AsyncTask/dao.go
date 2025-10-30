@@ -147,7 +147,7 @@ func (d *DAO) FetchPendingTask(ctx context.Context, taskType TaskType) (out *Tas
 	err = d.db.Model(d.tableName).Ctx(ctx).
 		Where("task_type", int(taskType)).
 		Where("status", int(TaskStatusPending)).
-		WhereLT("next_retry_time", gtime.Now().Unix()).
+		WhereLTE("next_retry_time", gtime.Now().Unix()).
 		OrderAsc("next_retry_time").
 		Scan(&entity)
 	if err != nil {
@@ -252,7 +252,7 @@ func (d *DAO) ResetTimeoutTasks(ctx context.Context, timeout time.Duration) (row
 
 	result, err := d.db.Model(d.tableName).Ctx(ctx).
 		Where("status", int(TaskStatusProcessing)).
-		WhereLT("update_time", timeoutTimestamp).
+		WhereLTE("update_time", timeoutTimestamp).
 		Data(g.Map{
 			"status":      int(TaskStatusPending),
 			"version":     gdb.Raw("version + 1"),

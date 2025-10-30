@@ -208,6 +208,7 @@ func (m *AsyncTaskManager) wakeUp(taskType TaskType) {
 
 	select {
 	case ch <- struct{}{}:
+		m.logger.Infof(m.ctx, "[AsyncTask] [%s] Signal notification sent to channel", m.getTaskTypeText(taskType))
 		// 信号发送成功
 	default:
 		// 通道已满
@@ -243,7 +244,9 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 等待信号或定时器
 		select {
 		case <-m.sigChanMap[taskType]: // 收到唤醒信号
+			m.logger.Infof(m.ctx, "[AsyncTask] [%s] Signal triggered", m.getTaskTypeText(taskType))
 		case <-time.After(time.Until(nextFetchTime)): // 定时器触发
+			m.logger.Infof(m.ctx, "[AsyncTask] [%s] Timer triggered, next fetch time: %s", m.getTaskTypeText(taskType), nextFetchTime.Format(time.DateTime))
 		case <-m.ctx.Done():
 			return
 		}
