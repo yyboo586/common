@@ -38,9 +38,6 @@ func NewAsyncTaskManager(config *Config) (Manager, error) {
 		return nil, err
 	}
 
-	logger := glog.New()
-	logger.SetLevel(config.LogLevel)
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	dao, err := newDAO(ctx, config)
@@ -51,7 +48,7 @@ func NewAsyncTaskManager(config *Config) (Manager, error) {
 
 	m := &AsyncTaskManager{
 		config:        config,
-		logger:        logger,
+		logger:        config.Logger,
 		dao:           dao,
 		ctx:           ctx,
 		cancel:        cancel,
@@ -205,7 +202,7 @@ func (m *AsyncTaskManager) wakeUp(taskType TaskType) {
 	m.mutex.RUnlock()
 
 	if !ok {
-		m.logger.Error(m.ctx, "[AsyncTask] [%s] Signal channel not found", m.getTaskTypeText(taskType))
+		m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Signal channel not found", m.getTaskTypeText(taskType))
 		return
 	}
 
@@ -214,7 +211,7 @@ func (m *AsyncTaskManager) wakeUp(taskType TaskType) {
 		// 信号发送成功
 	default:
 		// 通道已满
-		m.logger.Warning(m.ctx, "[AsyncTask] [%s] Signal channel is full", m.getTaskTypeText(taskType))
+		m.logger.Warningf(m.ctx, "[AsyncTask] [%s] Signal channel is full", m.getTaskTypeText(taskType))
 	}
 }
 
@@ -223,7 +220,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 	defer m.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			m.logger.Error(m.ctx, "[AsyncTask] [%s] Worker panic: %v", m.getTaskTypeText(taskType), r)
+			m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Worker panic: %v", m.getTaskTypeText(taskType), r)
 		}
 	}()
 
@@ -255,7 +252,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		task, err := m.dao.FetchPendingTask(m.ctx, taskType)
 		if err != nil {
 			if err != ErrNoRowsAffected {
-				m.logger.Error(m.ctx, "[AsyncTask] [%s] Failed to fetch task: %v", m.getTaskTypeText(taskType), err)
+				m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to fetch task: %v", m.getTaskTypeText(taskType), err)
 			}
 			nextFetchTime = time.Now().Add(m.config.ErrSleepInterval)
 			continue
@@ -266,7 +263,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 			// 查询下次执行时间
 			minTask, err := m.dao.GetMinNextRetryTime(m.ctx, taskType)
 			if err != nil {
-				m.logger.Error(m.ctx, "[AsyncTask] [%s] Failed to get min retry time: %v", m.getTaskTypeText(taskType), err)
+				m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to get min retry time: %v", m.getTaskTypeText(taskType), err)
 				nextFetchTime = time.Now().Add(m.config.ErrSleepInterval)
 				continue
 			}
@@ -282,7 +279,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 处理任务
 		err = m.handleTask(task, handler)
 		if err != nil {
-			m.logger.Error(m.ctx, "[AsyncTask] [%s] Failed to handle task (id: %d): %v", m.getTaskTypeText(taskType), task.ID, err)
+			m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to handle task (id: %d): %v", m.getTaskTypeText(taskType), task.ID, err)
 		}
 
 		// 立即查询下一个任务
@@ -334,7 +331,7 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 	// 更新任务状态
 	updateErr := m.dao.UpdateTaskStatus(ctx, task, status, nextRetryTime, lastError)
 	if updateErr != nil {
-		m.logger.Error(ctx, "[AsyncTask] [%s] Failed to update task status (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, updateErr)
+		m.logger.Errorf(ctx, "[AsyncTask] [%s] Failed to update task status (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, updateErr.Error())
 		return updateErr
 	}
 
@@ -343,7 +340,7 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 	round := task.RetryCount + 1
 	historyErr := m.dao.AddTaskHistory(ctx, task.ID, round, historyStatus, result, startTimeUnix, endTimeUnix, int64(duration))
 	if historyErr != nil {
-		m.logger.Warning(ctx, "[AsyncTask] [%s] Failed to add task history (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, historyErr)
+		m.logger.Warningf(ctx, "[AsyncTask] [%s] Failed to add task history (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, historyErr)
 		// 历史记录失败不影响主流程
 	}
 
@@ -382,7 +379,7 @@ func (m *AsyncTaskManager) timeoutMonitor() {
 		case <-ticker.C:
 			rowsAffected, err := m.dao.ResetTimeoutTasks(m.ctx, m.config.TaskTimeout)
 			if err != nil {
-				m.logger.Error(m.ctx, "[AsyncTask] Failed to reset timeout tasks: %v", err)
+				m.logger.Errorf(m.ctx, "[AsyncTask] Failed to reset timeout tasks: %v", err)
 				continue
 			}
 			if rowsAffected > 0 {

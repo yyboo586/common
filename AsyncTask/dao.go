@@ -39,15 +39,14 @@ func newDAO(ctx context.Context, config *Config) (*DAO, error) {
 		return nil, gerror.Newf("failed to get database instance for group: %s", config.Group)
 	}
 
-	logger := glog.New()
-	logger.SetLevel(config.LogLevel)
+	db.SetDebug(true)
 
 	dao := &DAO{
 		group:            config.Group,
 		tableName:        config.TableName,
 		historyTableName: config.HistoryTableName,
 		db:               db,
-		logger:           logger,
+		logger:           config.Logger,
 		ctx:              ctx,
 	}
 
@@ -181,6 +180,7 @@ func (d *DAO) FetchPendingTask(ctx context.Context, taskType TaskType) (out *Tas
 		return nil, ErrNoRowsAffected
 	}
 
+	entity.Version = entity.Version + 1
 	out, err = ConvertTaskEntityToTask(&entity)
 	if err != nil {
 		return nil, err

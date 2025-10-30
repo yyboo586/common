@@ -24,7 +24,7 @@ type Config struct {
 	HistoryTableName string
 
 	// 日志配置
-	LogLevel int
+	Logger *glog.Logger
 
 	// 工作线程初始化间隔，默认10秒
 	InitInterval time.Duration
@@ -51,7 +51,7 @@ func DefaultConfig() *Config {
 		Group:                "default",
 		TableName:            "t_async_task",
 		HistoryTableName:     "t_async_task_history",
-		LogLevel:             glog.LEVEL_INFO,
+		Logger:               glog.New(),
 		InitInterval:         10 * time.Second,
 		QueryInterval:        30 * time.Second,
 		ErrSleepInterval:     3 * time.Second,
@@ -85,9 +85,6 @@ func (c *Config) Validate() error {
 	}
 	if c.HistoryTableName == "" {
 		c.HistoryTableName = "t_async_task_history"
-	}
-	if c.LogLevel == 0 {
-		c.LogLevel = glog.LEVEL_INFO
 	}
 	if c.InitInterval == 0 {
 		c.InitInterval = 10 * time.Second
