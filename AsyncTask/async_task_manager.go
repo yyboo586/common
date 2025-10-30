@@ -294,15 +294,15 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 
 	// 记录开始时间
 	startTime := time.Now()
-	startTimeUnix := startTime.Unix()
+	startTimeUnix := startTime.UnixMilli()
 
 	// 执行处理器
 	err := handler(ctx, task)
 
 	// 记录结束时间
 	endTime := time.Now()
-	endTimeUnix := endTime.Unix()
-	duration := endTime.Sub(startTime).Seconds()
+	endTimeUnix := endTime.UnixMilli()
+	duration := endTime.Sub(startTime).Milliseconds()
 
 	var status TaskStatus
 	var nextRetryTime int64
@@ -433,7 +433,7 @@ func (m *AsyncTaskManager) GetTaskResult(ctx context.Context, customID string) (
 			"result":     h.Result,
 			"start_time": h.StartTime.Format(time.DateTime),
 			"end_time":   h.EndTime.Format(time.DateTime),
-			"duration":   fmt.Sprintf("任务执行耗时：%4ds", h.Duration),
+			"duration":   fmt.Sprintf("任务执行耗时：%4dms", h.Duration),
 		})
 	}
 	out["history"] = his
