@@ -160,7 +160,7 @@ func (m *AsyncTaskManager) Start() error {
 
 	// 为每个任务类型启动工作线程
 	for taskType, handler := range m.handlers {
-		m.sigChanMap[taskType] = make(chan struct{}, 1000)
+		m.sigChanMap[taskType] = make(chan struct{}, 1) // 容量改为1，防止信号堆积
 		m.wg.Add(1)
 		go m.worker(taskType, handler)
 	}
@@ -243,6 +243,15 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 等待信号或定时器
 		select {
 		case <-m.sigChanMap[taskType]: // 收到唤醒信号
+			// 清空 channel 中所有堆积的信号，避免重复查询
+			drainedCount := 0
+			for len(m.sigChanMap[taskType]) > 0 {
+				<-m.sigChanMap[taskType]
+				drainedCount++
+			}
+			if drainedCount > 0 {
+				m.logger.Debugf(m.ctx, "[AsyncTask] [%s] Drained %d pending signals", m.getTaskTypeText(taskType), drainedCount)
+			}
 		case <-time.After(time.Until(nextFetchTime)): // 定时器触发
 		case <-m.ctx.Done():
 			return
