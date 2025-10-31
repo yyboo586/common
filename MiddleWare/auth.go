@@ -34,7 +34,12 @@ func Auth(r *ghttp.Request) {
 
 	contextInfo, err := introspectToken(r)
 	if err != nil {
-		r.Exit()
+		r.Response.WriteJson(g.Map{
+			"code":    401,
+			"message": err.Error(),
+		})
+		r.Middleware.Next()
+		return
 	}
 
 	NewCustomContext().Init(r, contextInfo)
