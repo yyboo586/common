@@ -16,7 +16,7 @@ func CreateMyJWT(JwtTokenSignKey string) *JwtSign {
 
 // 定义一个 JWT验签 结构体
 type JwtSign struct {
-	SigningKey []byte
+	signingKey []byte
 }
 
 // CreateToken 生成一个token
@@ -24,13 +24,13 @@ func (j *JwtSign) CreateToken(claims CustomClaims) (string, error) {
 	// 生成jwt格式的header、claims 部分
 	tokenPartA := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	// 继续添加秘钥值，生成最后一部分
-	return tokenPartA.SignedString(j.SigningKey)
+	return tokenPartA.SignedString(j.signingKey)
 }
 
 // 解析Token (只验证格式并不验证过期)
 func (j *JwtSign) ParseToken(tokenString string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return j.SigningKey, nil
+		return j.signingKey, nil
 	})
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package tokenUtils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -12,83 +13,45 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gcache"
-	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/grand"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/yyboo586/common/cacheUtils"
 )
 
 type Token struct {
-	//  server name
-	ServerName string
-	// 缓存key (每创建一个实例CacheKey必须不相同)
-	CacheKey string
-	// 超时时间 默认10天（秒）
-	Timeout int64
-	// 缓存刷新时间 默认5天（秒）
-	// 处理携带token的请求时当前时间大于超时时间并小于缓存刷新时间时token将自动刷新即重置token存活时间
-	// MaxRefresh值为0时,token将不会自动刷新
-	MaxRefresh int64
-	// 是否允许多点登录
-	MultiLogin bool
-	// Token加密key 32位
-	EncryptKey []byte
-	// 缓存 (缓存模式:gcache 或 gredis)
-	cache *gcache.Cache
-	// 拦截排除地址
-	ExcludePaths g.SliceStr
-	// jwt
-	userJwt *JwtSign
+	cachePrefix          string            // 缓存前缀
+	cache                cacheUtils.ICache // 缓存
+	excludePaths         g.SliceStr        // 拦截排除地址
+	userJwt              *JwtSign          // jwt
+	accessTokenLifeSpan  time.Duration     // access token 生命周期
+	refreshTokenLifeSpan time.Duration     // refresh token 生命周期
 }
 
 // TokenData Token 数据
-type TokenData struct {
-	JwtToken string `json:"jwtToken"`
-	UuId     string `json:"uuId"`
+type tokenData struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
-// 存活时间 (存活时间 = 超时时间 + 缓存刷新时间)
-func (m *Token) diedLine() time.Time {
-	return time.Now().Add(time.Second * time.Duration(m.Timeout+m.MaxRefresh))
-}
-
-// 生成token
-func (m *Token) GenerateToken(ctx context.Context, key string, data interface{}) (keys string, err error) {
-	if len(key) < 32 {
-		err = gerror.New("key length must more than 32")
-		return
-	}
-	var (
-		uuid   string
-		tokens string
-	)
-	// 支持多端重复登录，返回新token
-	if m.MultiLogin {
-		key = gstr.SubStr(key, 0, len(key)-16) + grand.Letters(16)
-	}
-	tokens, err = m.userJwt.CreateToken(CustomClaims{
+// 生成 access token 和 refresh token
+func (t *Token) Generate(ctx context.Context, data interface{}) (token string, err error) {
+	jti := uuid.New().String()
+	token, err = t.userJwt.CreateToken(CustomClaims{
 		data,
 		jwt.RegisteredClaims{
-			NotBefore: jwt.NewNumericDate(time.Unix(time.Now().Unix()-10, 0)), // 生效开始时间
-			ExpiresAt: jwt.NewNumericDate(m.diedLine()),                       // 失效截止时间
+			NotBefore: jwt.NewNumericDate(time.Unix(time.Now().Unix()-10, 0)),    // 生效开始时间
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.accessTokenLifeSpan)), // 失效截止时间
+			ID:        jti,                                                       // jwt令牌唯一标识
 		},
 	})
 	if err != nil {
 		return
 	}
-	keys, uuid, err = m.EncryptToken(ctx, key)
-	if err != nil {
-		return
-	}
-	log.Println(keys)
-	log.Println(uuid)
-	err = m.setCache(ctx, m.CacheKey+key, TokenData{
-		JwtToken: tokens,
-		UuId:     uuid,
-	})
-	if err != nil {
-		return
-	}
+
+	t.setCache(ctx, fmt.Sprintf("%s_ac_%s", t.cachePrefix, jti), cacheData, t.accessTokenLifeSpan)
+	t.setCache(ctx, fmt.Sprintf("%s_rt_%s", t.cachePrefix, jti), cacheData, t.refreshTokenLifeSpan)
+
 	return
 }
 
@@ -143,7 +106,7 @@ func (m *Token) GetTokenData(ctx context.Context, token string) (tData *TokenDat
 	if err != nil {
 		return
 	}
-	tData, err = m.getCache(ctx, m.CacheKey+key)
+	tData, err = m.getCache(ctx, m.cachePrefix+key)
 	if tData == nil || tData.UuId != uuid {
 		err = gerror.New("token is invalid")
 	}
