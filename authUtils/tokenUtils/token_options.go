@@ -1,0 +1,33 @@
+package tokenUtils
+
+import (
+	"time"
+
+	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
+	"github.com/gogf/gf/v2/frame/g"
+)
+
+var (
+	defaultToken = Token{
+		ServerName:         "defaultTokenComponent",
+		AccessTokenTimeout: 24 * time.Hour,     // 访问令牌过期时间 1天
+		RefreshTimeout:     5 * 24 * time.Hour, // 刷新令牌过期时间 5天
+		signer:             CreateMyJWT("defaultTokenComponent"),
+	}
+)
+
+type OptionFunc func(*Token)
+
+func NewToken(opts ...OptionFunc) *Token {
+	g := defaultToken
+	for _, o := range opts {
+		o(&g)
+	}
+	return &g
+}
+
+func WithExcludePaths(value g.SliceStr) OptionFunc {
+	return func(g *Token) {
+		g.ExcludePaths = value
+	}
+}

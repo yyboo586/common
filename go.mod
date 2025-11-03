@@ -11,6 +11,7 @@ require (
 	github.com/gogf/gf/contrib/nosql/redis/v2 v2.9.4
 	github.com/gogf/gf/v2 v2.9.4
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/google/uuid v1.6.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/tiger1103/gfast-token v1.0.10
 )
@@ -39,7 +40,6 @@ require (
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grokify/html-strip-tags-go v0.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

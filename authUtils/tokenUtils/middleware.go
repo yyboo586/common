@@ -3,6 +3,7 @@ package tokenUtils
 import (
 	"strings"
 
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
 )
@@ -14,21 +15,23 @@ func (m *Token) Middleware(group *ghttp.RouterGroup) error {
 }
 
 func (m *Token) authMiddleware(r *ghttp.Request) {
-	b, res := m.IsLogin(r)
-	if !b {
-		r.Response.WriteJson(res)
+	_, err := m.Parse(r)
+	if err != nil {
+		r.Response.WriteJson(g.Map{
+			"code":    401,
+			"message": err.Error(),
+		})
 		return
 	}
 	r.Middleware.Next()
 }
 
-// AuthPath 判断路径是否需要进行认证拦截
-// return true 需要认证
 func (m *Token) AuthPath(urlPath string) bool {
 	// 去除后斜杠
 	if strings.HasSuffix(urlPath, "/") {
 		urlPath = gstr.SubStr(urlPath, 0, len(urlPath)-1)
 	}
+
 	// 排除路径处理，到这里nextFlag为true
 	for _, excludePath := range m.ExcludePaths {
 		tmpPath := excludePath
