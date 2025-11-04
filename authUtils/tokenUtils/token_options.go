@@ -1,20 +1,29 @@
 package tokenUtils
 
 import (
+	"os"
 	"time"
 
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 var (
 	defaultToken = Token{
-		ServerName:         "defaultTokenComponent",
 		AccessTokenTimeout: 24 * time.Hour,     // 访问令牌过期时间 1天
 		RefreshTimeout:     5 * 24 * time.Hour, // 刷新令牌过期时间 5天
 		signer:             CreateMyJWT("defaultTokenComponent"),
 	}
 )
+
+func init() {
+	defaultToken.logger = glog.New()
+	defaultToken.logger.SetLevel(glog.LEVEL_ALL)
+	defaultToken.logger.SetPrefix("[tokenUtils]")
+	defaultToken.logger.SetTimeFormat(time.DateTime)
+	defaultToken.logger.SetWriter(os.Stdout)
+}
 
 type OptionFunc func(*Token)
 

@@ -8,24 +8,16 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 const (
-	FailedAuthCode = 401
-	BearerPrefix   = "Bearer "
+	BearerPrefix = "Bearer "
 )
 
-type AuthFailed struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 type Token struct {
-	//  server name
-	ServerName string
-
 	// 访问令牌过期时间 默认1天.单位:秒
 	AccessTokenTimeout time.Duration
 	// 刷新机制超时时间 默认5天.单位:秒
@@ -36,12 +28,8 @@ type Token struct {
 
 	// jwt
 	signer *JwtSign
-}
 
-// TokenData Token 数据
-type TokenData struct {
-	JwtToken string `json:"jwtToken"`
-	UuId     string `json:"uuId"`
+	logger *glog.Logger
 }
 
 // 生成token
@@ -56,7 +44,8 @@ func (t *Token) Generate(ctx context.Context, data interface{}) (token string, e
 		},
 	})
 	if err != nil {
-		return
+		t.logger.Debugf(ctx, err.Error())
+		return "", gerror.Wrap(err, "生成Token失败")
 	}
 
 	return token, nil
@@ -67,13 +56,14 @@ func (t *Token) Parse(r *ghttp.Request) (*CustomClaims, error) {
 	// 从请求中获取token
 	token := t.GetTokenFromRequest(r)
 	if token == "" {
-		return nil, gerror.New("token is empty")
+		t.logger.Debugf(r.GetCtx(), "Token为空")
+		return nil, gerror.New("Token为空")
 	}
 
 	// 解析token
 	customClaims, err := t.signer.ParseToken(token)
 	if err != nil {
-		g.Log().Error(r.GetCtx(), err)
+		t.logger.Debugf(r.GetCtx(), err.Error())
 		return nil, err
 	}
 
@@ -84,10 +74,12 @@ func (t *Token) Parse(r *ghttp.Request) (*CustomClaims, error) {
 func (t *Token) Refresh(ctx context.Context, oldToken string) (newToken string, err error) {
 	customClaims, err := t.signer.ParseToken(oldToken)
 	if err != nil {
+		t.logger.Debugf(ctx, err.Error())
 		return "", err
 	}
 
 	if customClaims.IssuedAt.Add(t.RefreshTimeout).Before(time.Now()) {
+		t.logger.Debugf(ctx, "刷新令牌已过期")
 		return "", errors.New("refresh token is expired")
 	}
 

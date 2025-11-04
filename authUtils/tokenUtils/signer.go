@@ -1,11 +1,9 @@
 package tokenUtils
 
 import (
-	"context"
-	"errors"
 	"time"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -26,23 +24,20 @@ func (j *JwtSign) CreateToken(claims CustomClaims) (string, error) {
 }
 
 func (j *JwtSign) ParseToken(tokenString string) (*CustomClaims, error) {
-	g.Log().Info(context.Background(), "tokenString", tokenString)
 	claimsData, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return j.signingKey, nil
 	})
 	if err != nil {
-		g.Log().Error(context.Background(), err)
-		return nil, err
+		return nil, gerror.Wrap(err, ErrTokenInvalidText)
 	}
 	if claimsData == nil {
-		g.Log().Error(context.Background(), errors.New("claimsData is nil"))
-		return nil, errors.New(ErrorsTokenInvalid)
+		return nil, gerror.New(ErrTokenInvalidText + " claimsData is nil")
 	}
+
 	if claims, ok := claimsData.Claims.(*CustomClaims); ok && claimsData.Valid {
 		return claims, nil
 	} else {
-		g.Log().Error(context.Background(), errors.New("claimsData is not valid"))
-		return nil, errors.New(ErrorsTokenInvalid)
+		return nil, gerror.New(ErrTokenInvalidText + " claimsData is not CustomClaims type")
 	}
 }
 

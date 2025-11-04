@@ -3,6 +3,7 @@ package AsyncTask
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -46,9 +47,15 @@ func NewAsyncTaskManager(config *Config) (Manager, error) {
 		return nil, fmt.Errorf("failed to create DAO: %w", err)
 	}
 
+	logger := glog.New()
+	logger.SetLevel(glog.LEVEL_ALL)
+	logger.SetPrefix("[AsyncTask]")
+	logger.SetTimeFormat(time.DateTime)
+	logger.SetWriter(os.Stdout)
+
 	m := &AsyncTaskManager{
 		config:        config,
-		logger:        config.Logger,
+		logger:        logger,
 		dao:           dao,
 		ctx:           ctx,
 		cancel:        cancel,
@@ -88,7 +95,7 @@ func (m *AsyncTaskManager) RegisterHandler(taskType TaskType, taskTypeText strin
 	}
 	m.mutex.Unlock()
 
-	m.logger.Infof(m.ctx, "[AsyncTask] Handler registered for task: %s", m.getTaskTypeText(taskType))
+	m.logger.Infof(m.ctx, "Handler registered for task: %s", m.getTaskTypeText(taskType))
 	return nil
 }
 
@@ -169,7 +176,7 @@ func (m *AsyncTaskManager) Start() error {
 	m.wg.Add(1)
 	go m.timeoutMonitor()
 
-	m.logger.Infof(m.ctx, "[AsyncTask] Started with %d handler(s)", len(m.handlers))
+	m.logger.Infof(m.ctx, "Started with %d handler(s)", len(m.handlers))
 
 	return nil
 }
@@ -202,17 +209,17 @@ func (m *AsyncTaskManager) wakeUp(taskType TaskType) {
 	m.mutex.RUnlock()
 
 	if !ok {
-		m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Signal channel not found", m.getTaskTypeText(taskType))
+		m.logger.Errorf(m.ctx, "[%s] Signal channel not found", m.getTaskTypeText(taskType))
 		return
 	}
 
 	select {
 	case ch <- struct{}{}:
-		m.logger.Infof(m.ctx, "[AsyncTask] [%s] Signal notification sent to channel", m.getTaskTypeText(taskType))
+		m.logger.Infof(m.ctx, "[%s] Signal notification sent to channel", m.getTaskTypeText(taskType))
 		// 信号发送成功
 	default:
 		// 通道已满
-		m.logger.Warningf(m.ctx, "[AsyncTask] [%s] Signal channel is full", m.getTaskTypeText(taskType))
+		m.logger.Warningf(m.ctx, "[%s] Signal channel is full", m.getTaskTypeText(taskType))
 	}
 }
 
@@ -221,14 +228,14 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 	defer m.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Worker panic: %v", m.getTaskTypeText(taskType), r)
+			m.logger.Errorf(m.ctx, "[%s] Worker panic: %v", m.getTaskTypeText(taskType), r)
 		}
 	}()
 
 	// 初始化延迟
 	time.Sleep(m.config.InitInterval)
 
-	m.logger.Infof(m.ctx, "[AsyncTask] [%s] Worker started", m.getTaskTypeText(taskType))
+	m.logger.Infof(m.ctx, "[%s] Worker started", m.getTaskTypeText(taskType))
 
 	nextFetchTime := time.Now()
 
@@ -236,7 +243,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 检查退出信号
 		select {
 		case <-m.ctx.Done():
-			m.logger.Infof(m.ctx, "[AsyncTask] [%s] Worker stopped", m.getTaskTypeText(taskType))
+			m.logger.Infof(m.ctx, "[%s] Worker stopped", m.getTaskTypeText(taskType))
 			return
 		default:
 		}
@@ -244,9 +251,9 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 等待信号或定时器
 		select {
 		case <-m.sigChanMap[taskType]: // 收到唤醒信号
-			m.logger.Infof(m.ctx, "[AsyncTask] [%s] Signal triggered", m.getTaskTypeText(taskType))
+			m.logger.Infof(m.ctx, "[%s] Signal triggered", m.getTaskTypeText(taskType))
 		case <-time.After(time.Until(nextFetchTime)): // 定时器触发
-			m.logger.Infof(m.ctx, "[AsyncTask] [%s] Timer triggered, next fetch time: %s", m.getTaskTypeText(taskType), nextFetchTime.Format(time.DateTime))
+			m.logger.Infof(m.ctx, "[%s] Timer triggered, next fetch time: %s", m.getTaskTypeText(taskType), nextFetchTime.Format(time.DateTime))
 		case <-m.ctx.Done():
 			return
 		}
@@ -255,7 +262,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		task, err := m.dao.FetchPendingTask(m.ctx, taskType)
 		if err != nil {
 			if err != ErrNoRowsAffected {
-				m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to fetch task: %v", m.getTaskTypeText(taskType), err)
+				m.logger.Errorf(m.ctx, "[%s] Failed to fetch task: %v", m.getTaskTypeText(taskType), err)
 			}
 			nextFetchTime = time.Now().Add(m.config.ErrSleepInterval)
 			continue
@@ -266,7 +273,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 			// 查询下次执行时间
 			minTask, err := m.dao.GetMinNextRetryTime(m.ctx, taskType)
 			if err != nil {
-				m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to get min retry time: %v", m.getTaskTypeText(taskType), err)
+				m.logger.Errorf(m.ctx, "[%s] Failed to get min retry time: %v", m.getTaskTypeText(taskType), err)
 				nextFetchTime = time.Now().Add(m.config.ErrSleepInterval)
 				continue
 			}
@@ -282,7 +289,7 @@ func (m *AsyncTaskManager) worker(taskType TaskType, handler TaskHandler) {
 		// 处理任务
 		err = m.handleTask(task, handler)
 		if err != nil {
-			m.logger.Errorf(m.ctx, "[AsyncTask] [%s] Failed to handle task (id: %d): %v", m.getTaskTypeText(taskType), task.ID, err)
+			m.logger.Errorf(m.ctx, "[%s] Failed to handle task (id: %d): %v", m.getTaskTypeText(taskType), task.ID, err)
 		}
 
 		// 立即查询下一个任务
@@ -320,7 +327,7 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 		lastError = err.Error()
 		historyStatus = 0
 		result = err.Error()
-		m.logger.Debugf(ctx, "[AsyncTask] [%s] Task failed (id: %d, retry: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, task.RetryCount, err)
+		m.logger.Debugf(ctx, "[%s] Task failed (id: %d, retry: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, task.RetryCount, err)
 	} else {
 		// 处理成功
 		status = TaskStatusSuccess
@@ -328,13 +335,13 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 		lastError = "" // 成功时清空错误信息
 		historyStatus = 1
 		result = "success"
-		m.logger.Debugf(ctx, "[AsyncTask] [%s] Task succeeded (id: %d)", m.getTaskTypeText(task.TaskType), task.ID)
+		m.logger.Debugf(ctx, "[%s] Task succeeded (id: %d)", m.getTaskTypeText(task.TaskType), task.ID)
 	}
 
 	// 更新任务状态
 	updateErr := m.dao.UpdateTaskStatus(ctx, task, status, nextRetryTime, lastError)
 	if updateErr != nil {
-		m.logger.Errorf(ctx, "[AsyncTask] [%s] Failed to update task status (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, updateErr.Error())
+		m.logger.Errorf(ctx, "[%s] Failed to update task status (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, updateErr.Error())
 		return updateErr
 	}
 
@@ -343,7 +350,7 @@ func (m *AsyncTaskManager) handleTask(task *Task, handler TaskHandler) error {
 	round := task.RetryCount + 1
 	historyErr := m.dao.AddTaskHistory(ctx, task.ID, round, historyStatus, result, startTimeUnix, endTimeUnix, int64(duration))
 	if historyErr != nil {
-		m.logger.Warningf(ctx, "[AsyncTask] [%s] Failed to add task history (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, historyErr)
+		m.logger.Warningf(ctx, "[%s] Failed to add task history (id: %d): %v", m.getTaskTypeText(task.TaskType), task.ID, historyErr)
 		// 历史记录失败不影响主流程
 	}
 
@@ -382,11 +389,11 @@ func (m *AsyncTaskManager) timeoutMonitor() {
 		case <-ticker.C:
 			rowsAffected, err := m.dao.ResetTimeoutTasks(m.ctx, m.config.TaskTimeout)
 			if err != nil {
-				m.logger.Errorf(m.ctx, "[AsyncTask] Failed to reset timeout tasks: %v", err)
+				m.logger.Errorf(m.ctx, "Failed to reset timeout tasks: %v", err)
 				continue
 			}
 			if rowsAffected > 0 {
-				m.logger.Infof(m.ctx, "[AsyncTask] Reset %d timeout tasks", rowsAffected)
+				m.logger.Infof(m.ctx, "Reset %d timeout tasks", rowsAffected)
 			}
 		}
 	}

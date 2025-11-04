@@ -9,7 +9,6 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
@@ -19,7 +18,6 @@ type DAO struct {
 	tableName        string
 	historyTableName string
 	db               gdb.DB
-	logger           *glog.Logger
 	ctx              context.Context
 }
 
@@ -46,7 +44,6 @@ func newDAO(ctx context.Context, config *Config) (*DAO, error) {
 		tableName:        config.TableName,
 		historyTableName: config.HistoryTableName,
 		db:               db,
-		logger:           config.Logger,
 		ctx:              ctx,
 	}
 
@@ -82,8 +79,6 @@ CREATE TABLE IF NOT EXISTS %s (
 		return fmt.Errorf("failed to create table: %w", err)
 	}
 
-	d.logger.Info(d.ctx, "[AsyncTask] Table %s ensured", d.tableName)
-
 	// 创建历史表
 	createHistoryTableSQL := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
@@ -105,7 +100,6 @@ CREATE TABLE IF NOT EXISTS %s (
 		return fmt.Errorf("failed to create history table: %w", err)
 	}
 
-	d.logger.Info(d.ctx, "[AsyncTask] History table %s ensured", d.historyTableName)
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -23,26 +24,29 @@ type HTTPClient interface {
 	DELETE(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
 }
 
+var (
+	httpClientWithoutDebugOnce sync.Once
+	httpClientWithDebugOnce    sync.Once
+	httpClientWithoutDebug     *httpClient
+	httpClientWithDebug        *httpClient
+)
+
 type httpClient struct {
 	debug  bool
 	logger *glog.Logger
 	c      *http.Client
 }
 
-var (
-	hcOnce sync.Once
-	hc     *httpClient
-)
-
 func NewHTTPClient() HTTPClient {
-	hcOnce.Do(func() {
+	httpClientWithoutDebugOnce.Do(func() {
 		logger := glog.New()
 		logger.SetLevel(glog.LEVEL_ERRO)
 		logger.SetPrefix("[httpUtils]")
 		logger.SetTimeFormat(time.DateTime)
 		logger.SetWriter(os.Stdout)
-		hc = &httpClient{
-			logger: logger,
+
+		httpClientWithoutDebug = &httpClient{
+			logger: glog.New(),
 			c: &http.Client{
 				Timeout: time.Second * 3,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -51,18 +55,28 @@ func NewHTTPClient() HTTPClient {
 			},
 		}
 	})
-	return hc
+
+	return httpClientWithoutDebug
 }
 
 func NewHTTPClientWithDebug(debug bool) HTTPClient {
-	hcOnce.Do(func() {
+	if debug {
+		return NewHTTPClient2()
+	} else {
+		return NewHTTPClient()
+	}
+}
+
+func NewHTTPClient2() HTTPClient {
+	httpClientWithDebugOnce.Do(func() {
 		logger := glog.New()
 		logger.SetLevel(glog.LEVEL_ALL)
 		logger.SetPrefix("[httpUtils]")
 		logger.SetTimeFormat(time.DateTime)
 		logger.SetWriter(os.Stdout)
-		hc = &httpClient{
-			debug:  debug,
+
+		httpClientWithDebug = &httpClient{
+			debug:  true,
 			logger: logger,
 			c: &http.Client{
 				Timeout: time.Second * 3,
@@ -72,7 +86,7 @@ func NewHTTPClientWithDebug(debug bool) HTTPClient {
 			},
 		}
 	})
-	return hc
+	return httpClientWithDebug
 }
 
 func (hc *httpClient) GET(ctx context.Context, url string, header map[string]interface{}) (status int, respBody []byte, err error) {
@@ -203,9 +217,7 @@ func (hc *httpClient) do(req *http.Request) (status int, respBody []byte, err er
 		return
 	}
 
-	hc.logger.Debug(context.Background(), "1")
 	if hc.debug {
-		hc.logger.Debug(context.Background(), "2")
 		hc.printDebugInfo(req, reqBody, resp.StatusCode, respBody)
 	}
 
@@ -261,7 +273,7 @@ func (hc *httpClient) printDebugInfo(req *http.Request, reqBody []byte, statusCo
 		}
 	}
 
-	buf.WriteString("\n" + strings.Repeat("=", 61) + "\n")
+	buf.WriteString(strings.Repeat("=", 61) + "\n")
 
-	hc.logger.Debugf(context.Background(), buf.String())
+	g.Log().Debugf(context.Background(), buf.String())
 }
