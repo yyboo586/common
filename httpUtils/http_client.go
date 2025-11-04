@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 type HTTPClient interface {
@@ -21,8 +24,9 @@ type HTTPClient interface {
 }
 
 type httpClient struct {
-	debug bool
-	c     *http.Client
+	debug  bool
+	logger *glog.Logger
+	c      *http.Client
 }
 
 var (
@@ -32,7 +36,13 @@ var (
 
 func NewHTTPClient() HTTPClient {
 	hcOnce.Do(func() {
+		logger := glog.New()
+		logger.SetLevel(glog.LEVEL_ERRO)
+		logger.SetPrefix("[httpUtils]")
+		logger.SetTimeFormat(time.DateTime)
+		logger.SetWriter(os.Stdout)
 		hc = &httpClient{
+			logger: logger,
 			c: &http.Client{
 				Timeout: time.Second * 3,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -46,8 +56,14 @@ func NewHTTPClient() HTTPClient {
 
 func NewHTTPClientWithDebug(debug bool) HTTPClient {
 	hcOnce.Do(func() {
+		logger := glog.New()
+		logger.SetLevel(glog.LEVEL_ALL)
+		logger.SetPrefix("[httpUtils]")
+		logger.SetTimeFormat(time.DateTime)
+		logger.SetWriter(os.Stdout)
 		hc = &httpClient{
-			debug: debug,
+			debug:  debug,
+			logger: logger,
 			c: &http.Client{
 				Timeout: time.Second * 3,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -187,7 +203,9 @@ func (hc *httpClient) do(req *http.Request) (status int, respBody []byte, err er
 		return
 	}
 
+	hc.logger.Debug(context.Background(), "1")
 	if hc.debug {
+		hc.logger.Debug(context.Background(), "2")
 		hc.printDebugInfo(req, reqBody, resp.StatusCode, respBody)
 	}
 
@@ -245,6 +263,5 @@ func (hc *httpClient) printDebugInfo(req *http.Request, reqBody []byte, statusCo
 
 	buf.WriteString("\n" + strings.Repeat("=", 61) + "\n")
 
-	// 一次性输出，避免并发场景下日志混乱
-	fmt.Print(buf.String())
+	hc.logger.Debugf(context.Background(), buf.String())
 }
