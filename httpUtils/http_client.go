@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -24,13 +23,6 @@ type HTTPClient interface {
 	DELETE(ctx context.Context, url string, header map[string]interface{}, body interface{}) (status int, respBody []byte, err error)
 }
 
-var (
-	httpClientWithoutDebugOnce sync.Once
-	httpClientWithDebugOnce    sync.Once
-	httpClientWithoutDebug     *httpClient
-	httpClientWithDebug        *httpClient
-)
-
 type httpClient struct {
 	debug  bool
 	logger *glog.Logger
@@ -38,25 +30,22 @@ type httpClient struct {
 }
 
 func NewHTTPClient() HTTPClient {
-	httpClientWithoutDebugOnce.Do(func() {
-		logger := glog.New()
-		logger.SetLevel(glog.LEVEL_ERRO)
-		logger.SetPrefix("[httpUtils]")
-		logger.SetTimeFormat(time.DateTime)
-		logger.SetWriter(os.Stdout)
 
-		httpClientWithoutDebug = &httpClient{
-			logger: glog.New(),
-			c: &http.Client{
-				Timeout: time.Second * 3,
-				CheckRedirect: func(req *http.Request, via []*http.Request) error {
-					return http.ErrUseLastResponse
-				},
+	logger := glog.New()
+	logger.SetLevel(glog.LEVEL_ERRO)
+	logger.SetPrefix("[httpUtils]")
+	logger.SetTimeFormat(time.DateTime)
+	logger.SetWriter(os.Stdout)
+
+	return &httpClient{
+		logger: glog.New(),
+		c: &http.Client{
+			Timeout: time.Second * 3,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
 			},
-		}
-	})
-
-	return httpClientWithoutDebug
+		},
+	}
 }
 
 func NewHTTPClientWithDebug(debug bool) HTTPClient {
@@ -68,25 +57,22 @@ func NewHTTPClientWithDebug(debug bool) HTTPClient {
 }
 
 func NewHTTPClient2() HTTPClient {
-	httpClientWithDebugOnce.Do(func() {
-		logger := glog.New()
-		logger.SetLevel(glog.LEVEL_ALL)
-		logger.SetPrefix("[httpUtils]")
-		logger.SetTimeFormat(time.DateTime)
-		logger.SetWriter(os.Stdout)
+	logger := glog.New()
+	logger.SetLevel(glog.LEVEL_ALL)
+	logger.SetPrefix("[httpUtils]")
+	logger.SetTimeFormat(time.DateTime)
+	logger.SetWriter(os.Stdout)
 
-		httpClientWithDebug = &httpClient{
-			debug:  true,
-			logger: logger,
-			c: &http.Client{
-				Timeout: time.Second * 3,
-				CheckRedirect: func(req *http.Request, via []*http.Request) error {
-					return http.ErrUseLastResponse
-				},
+	return &httpClient{
+		debug:  true,
+		logger: logger,
+		c: &http.Client{
+			Timeout: time.Second * 3,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
 			},
-		}
-	})
-	return httpClientWithDebug
+		},
+	}
 }
 
 func (hc *httpClient) GET(ctx context.Context, url string, header map[string]interface{}) (status int, respBody []byte, err error) {

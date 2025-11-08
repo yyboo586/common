@@ -143,6 +143,7 @@ func (d *DAO) FetchPendingTask(ctx context.Context, taskType TaskType) (out *Tas
 		Where("status", int(TaskStatusPending)).
 		WhereLTE("next_retry_time", gtime.Now().Unix()).
 		OrderAsc("next_retry_time").
+		Limit(1).
 		Scan(&entity)
 	if err != nil {
 		if err == sql.ErrNoRows {
