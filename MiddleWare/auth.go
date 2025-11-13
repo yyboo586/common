@@ -27,22 +27,24 @@ func Auth(r *ghttp.Request) {
 	ctx := r.GetCtx()
 
 	excludePaths := g.Cfg().MustGet(ctx, "gfToken.excludePaths").Strings()
+	// 如果请求路径在排除路径列表中，则直接放行
 	if slices.Contains(excludePaths, r.URL.Path) {
 		r.Middleware.Next()
 		return
 	}
 
 	contextInfo, err := introspectToken(r)
+	// 如果解析令牌失败，退出后续所有中间件，并返回401错误
 	if err != nil {
-		r.Response.WriteJson(g.Map{
-			"code":    401,
-			"message": err.Error(),
+		r.Response.WriteJson(DefaultResponse{
+			Code:    http.StatusUnauthorized,
+			Message: err.Error(),
 		})
-		r.Middleware.Next()
-		return
+		r.ExitAll()
 	}
 
-	NewCustomContext().Init(r, contextInfo)
+	// 将用户信息初始化到上下文
+	ContextInit(r, contextInfo)
 	r.Middleware.Next()
 }
 
