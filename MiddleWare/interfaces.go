@@ -12,6 +12,7 @@ type ContextUser struct {
 	Phone        string  `json:"phone"`
 	OrgID        string  `json:"org_id"`
 	RoleIDs      []int64 `json:"role_ids"`
+	DeptID       uint64  `json:"dept_id"`
 
 	Token string `json:"-"`
 }

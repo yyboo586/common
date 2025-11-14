@@ -1,6 +1,7 @@
 package tokenUtils
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -38,5 +39,18 @@ func NewToken(opts ...OptionFunc) *Token {
 func WithExcludePaths(value g.SliceStr) OptionFunc {
 	return func(g *Token) {
 		g.ExcludePaths = value
+	}
+}
+
+func WithTokenStoreConfig(cfg *TokenStoreConfig) OptionFunc {
+	return func(g *Token) {
+		store, err := NewTokenStore(cfg)
+		if err != nil {
+			panic(err)
+		}
+		if err := store.EnsureTable(context.Background()); err != nil {
+			panic(err)
+		}
+		g.store = store
 	}
 }

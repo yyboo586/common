@@ -302,6 +302,18 @@ func (d *DAO) GetTaskByCustomID(ctx context.Context, customID string) (out *Task
 	return out, nil
 }
 
+func (d *DAO) IsTaskExists(ctx context.Context, customID string, taskType TaskType) (exists bool, err error) {
+	exists, err = d.db.Model(d.tableName).Ctx(ctx).
+		Where("custom_id", customID).
+		Where("task_type", int(taskType)).
+		Exist()
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
 // GetTaskHistory 获取任务执行历史
 func (d *DAO) GetTaskHistory(ctx context.Context, taskID int64) (out []*TaskHistory, err error) {
 	var entities []TaskHistoryEntity

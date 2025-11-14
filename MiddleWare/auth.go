@@ -82,6 +82,7 @@ func introspectToken(r *ghttp.Request) (out *ContextUser, err error) {
 	phone, _ := resp.Data.(map[string]interface{})["user_phone"].(string)
 	orgID, _ := resp.Data.(map[string]interface{})["org_id"].(string)
 	roleIDs, _ := resp.Data.(map[string]interface{})["role_ids"].([]int64)
+	deptID, _ := resp.Data.(map[string]interface{})["dept_id"].(float64)
 
 	out = &ContextUser{
 		UserID:       userID,
@@ -91,6 +92,7 @@ func introspectToken(r *ghttp.Request) (out *ContextUser, err error) {
 		Phone:        phone,
 		OrgID:        orgID,
 		RoleIDs:      roleIDs,
+		DeptID:       uint64(deptID),
 
 		Token: tokenStr,
 	}

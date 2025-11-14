@@ -131,4 +131,6 @@ type Manager interface {
 
 	// 查询任务信息及执行历史
 	GetTaskResult(ctx context.Context, customID string) (map[string]interface{}, error)
+	// 查询任务是否已存在
+	IsTaskExists(ctx context.Context, customID string, taskType TaskType) (bool, error)
 }

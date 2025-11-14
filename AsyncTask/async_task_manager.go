@@ -450,3 +450,12 @@ func (m *AsyncTaskManager) GetTaskResult(ctx context.Context, customID string) (
 
 	return out, nil
 }
+
+// IsTaskExists 查询任务是否已存在
+func (m *AsyncTaskManager) IsTaskExists(ctx context.Context, customID string, taskType TaskType) (bool, error) {
+	if m.closed {
+		return false, ErrManagerClosed
+	}
+
+	return m.dao.IsTaskExists(ctx, customID, taskType)
+}
